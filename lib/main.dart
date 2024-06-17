@@ -601,6 +601,11 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }*/
+
+
+//code qui marche
+
+/*
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -806,4 +811,219 @@ class ExportScreen extends StatelessWidget {
     Placemark placemark = placemarks.first;
     return '${placemark.subThoroughfare} ${placemark.thoroughfare}, ${placemark.subLocality}, ${placemark.locality}';
   }
+}*/
+
+
+//code2
+
+
+
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:intl/intl.dart';
+import 'package:geocoding/geocoding.dart';
+import 'dart:async';
+
+void main() {
+  runApp(MyApp());
 }
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Map Tracking',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: MapScreen(),
+    );
+  }
+}
+
+class MapScreen extends StatefulWidget {
+  @override
+  _MapScreenState createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  List<LatLng> _points = [];
+  late MapController _mapController;
+  DateTime? _startTime;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  bool _isTracking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permissions are denied');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error(
+          'Location permissions are permanently denied, we cannot request permissions.');
+    }
+  }
+
+  void _startTracking() {
+    if (_isTracking) return;
+
+    setState(() {
+      _isTracking = true;
+      _startTime ??= DateTime.now();
+    });
+
+    _positionStreamSubscription = Geolocator.getPositionStream().listen((Position position) {
+      setState(() {
+        _points.add(LatLng(position.latitude, position.longitude));
+        _mapController.move(LatLng(position.latitude, position.longitude), _mapController.zoom);
+      });
+    });
+  }
+
+  void _stopTracking() {
+    if (!_isTracking) return;
+
+    setState(() {
+      _isTracking = false;
+    });
+
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+  }
+
+  void _exportPosition() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExportScreen(lastPosition: _points.last, points: _points),
+      ),
+    );
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Flutter Map Tracking'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (choice) {
+              if (choice == 'Démarrer suivi') {
+                _startTracking();
+              } else if (choice == 'Arrêter suivi') {
+                _stopTracking();
+              } else if (choice == 'Exporter parcours') {
+                _exportPosition();
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return {'Démarrer suivi', 'Arrêter suivi', 'Exporter parcours'}
+                  .map((String choice) {
+                return PopupMenuItem<String>(
+                  value: choice,
+                  child: Text(choice),
+                );
+              })
+                  .toList();
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                center: LatLng(0, 0),
+                zoom: 15.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  subdomains: ['a', 'b', 'c'],
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _points,
+                      strokeWidth: 4.0,
+                      color: Colors.blue,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: _points.map((point) {
+                    return Marker(
+                      width: 80.0,
+                      height: 80.0,
+                      point: point,
+                      builder: (ctx) => Container(
+                        child: Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+}
+
+class ExportScreen extends StatelessWidget {
+  final LatLng lastPosition;
+  final List<LatLng> points;
+
+  const ExportScreen({Key? key, required this.lastPosition, required this.points}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Export Position'),
+      ),
+      body: Center(
+        child: Text('Last Position: $lastPosition\nPoints Count: ${points.length}'),
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
+
